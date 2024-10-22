@@ -2,6 +2,7 @@ import sys
 import os
 import psutil
 import pytest
+import logging
 from unittest.mock import call, patch
 from swsscommon import swsscommon
 from sonic_py_common.general import load_module_from_source
@@ -114,14 +115,21 @@ class TestProcDockerStatsDaemon(object):
         valid_create_time1 = int((current_time - timedelta(days=1)).timestamp())
         valid_create_time2 = int((current_time - timedelta(days=2)).timestamp())
         # Create a list of mocked processes
-        mocked_processes = [
-            MockProcess(uids=[1000], pid=1234, ppid=5678, memory_percent=10.5, cpu_percent=20.5, create_time=valid_create_time1, cmdline=['python', 'script.py'], user_time=1.5, system_time=2.0),
-            MockProcess(uids=[1000], pid=5678, ppid=0, memory_percent=5.5, cpu_percent=15.5, create_time=valid_create_time2, cmdline=['bash', 'script.sh'], user_time=3.5, system_time=4.0)
-        ]
+        mocked_processes = [  
+            Mock(),  
+            Mock()  
+        ]  
+        mocked_processes[0].pid = 1234  
+        mocked_processes[0].cmdline.return_value = ['python', 'script.py']  
+        mocked_processes[1].pid = 5678  
+        mocked_processes[1].cmdline.return_value = ['bash', 'script.sh']
 
         with patch("procdockerstatsd.psutil.process_iter", return_value=mocked_processes) as mock_process_iter:
+            pdstatsd.all_process_obj = {}#{1234: psutil.Process(uids=[1000], pid=1234, ppid=0, memory_percent=5.5, cpu_percent=99, create_time=valid_create_time2, cmdline=['bash', 'script.sh'], user_time=3.5, system_time=4.0),
+                                        #6666: psutil.Process(uids=[1000], pid=6666, ppid=0, memory_percent=5.5, cpu_percent=15.5, create_time=valid_create_time2, cmdline=['bash', 'script.sh'], user_time=3.5, system_time=4.0)}
             pdstatsd.update_processstats_command()
             mock_process_iter.assert_called_once()
+        assert(len(pdstatsd.all_process_obj)== 2)
 
     @patch('procdockerstatsd.getstatusoutput_noshell_pipe', return_value=([0, 0], ''))
     def test_update_fipsstats_command(self, mock_cmd):
